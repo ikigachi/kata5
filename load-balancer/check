@@ -1,0 +1,2 @@
+http://localhost:8500/v1/health/service/videogame_service_v1
+http://localhost:8500/v1/health/service/videogame_service_v2
