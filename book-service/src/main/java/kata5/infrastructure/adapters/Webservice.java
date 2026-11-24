@@ -16,28 +16,26 @@ import java.util.List;
 import java.util.Map;
 
 public final class Webservice {
-    private final String id;
-    private final String host;
-    private final int port;
-    private final String consul;
-    private final String serviceName;
+    private final WebserviceConfig config;
     private final List<Book> books;
     private final Gson gson = new Gson();
 
-    public Webservice(String id, String host, int port, String consul, String serviceName, List<Book> books) {
-        this.id = id;
-        this.host = host;
-        this.port = port;
-        this.consul = consul;
-        this.serviceName = serviceName;
+    public Webservice(WebserviceConfig config, List<Book> books) {
+        this.config = config;
         this.books = List.copyOf(books);
     }
 
     public void start() throws IOException, InterruptedException {
-        Javalin app = Javalin.create(this::init).start(host, port);
+        Javalin app = Javalin.create(this::init)
+                .start(config.host(), config.port());
+
         try {
             register();
-            System.out.println("Registered: " + id + " as " + serviceName + " at " + host() + ":" + port);
+            System.out.println(
+                    "Registered: " + config.id()
+                            + " as " + config.serviceName()
+                            + " at " + host() + ":" + config.port()
+            );
         } catch (IOException | InterruptedException | RuntimeException failure) {
             app.stop();
             throw failure;
@@ -54,7 +52,7 @@ public final class Webservice {
     }
 
     private void books(Context context) {
-        context.header("X-Node", id);
+        context.header("X-Node", config.id());
         context.contentType("application/json");
         context.result(gson.toJson(books));
     }
@@ -75,7 +73,7 @@ public final class Webservice {
     }
 
     private HttpRequest requestWith(String json) {
-        return HttpRequest.newBuilder(URI.create(consul).resolve("/v1/agent/service/register"))
+        return HttpRequest.newBuilder(URI.create(config.consul()).resolve("/v1/agent/service/register"))
                 .timeout(Duration.ofSeconds(5))
                 .header("Content-Type", "application/json")
                 .PUT(HttpRequest.BodyPublishers.ofString(json))
@@ -83,25 +81,25 @@ public final class Webservice {
     }
 
     private String host() {
-        return isLocalHost() ? "host.docker.internal" : host;
+        return isLocalHost() ? "host.docker.internal" : config.host();
     }
 
     private boolean isLocalHost() {
-        return "localhost".equals(host) ||
-                "127.0.0.1".equals(host) ||
-                "0.0.0.0".equals(host);
+        return "localhost".equals(config.host()) ||
+                "127.0.0.1".equals(config.host()) ||
+                "0.0.0.0".equals(config.host());
     }
 
     private String healthUrl() {
-        return "http://" + host() + ":" + port + "/health";
+        return "http://" + host() + ":" + config.port() + "/health";
     }
 
     private String json() {
         return gson.toJson(Map.of(
-                "ID", id,
-                "Name", serviceName,
+                "ID", config.id(),
+                "Name", config.serviceName(),
                 "Address", host(),
-                "Port", port,
+                "Port", config.port(),
                 "Check", Map.of(
                         "HTTP", healthUrl(),
                         "Interval", "5s",
